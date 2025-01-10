@@ -1,6 +1,6 @@
 import customtkinter as ctk
 from joblib import Parallel, delayed
-from tqdm import tqdm
+import threading
 import time
 import os
 
@@ -11,34 +11,30 @@ def match_name_parallel(chunk, matcher):
 
 # Your function to process chunks in parallel
 def process_chunks(chunks, matcher, n_jobs, progress_bar, root):
-    # Define a tqdm wrapper to update the progress bar
-    def update_progress(t):
-        progress_bar.set(t)
+    def update_progress(current_progress):
+        # Update the progress bar in the GUI thread
+        progress_bar.set(current_progress)
         root.update_idletasks()
 
-    # Wrap the tqdm with the update_progress function
-    results = Parallel(n_jobs=n_jobs, verbose=0)(
-        delayed(match_name_parallel)(chunk, matcher) for chunk in tqdm(chunks, 
-                                                                       desc="Processing", 
-                                                                       ncols=100, 
-                                                                       position=0, 
-                                                                       leave=True, 
-                                                                       file=open(os.devnull, 'w'),  # Suppress output in terminal
-                                                                       dynamic_ncols=True, 
-                                                                       update_interval=0.1, 
-                                                                       # Use the custom update_progress function
-                                                                       bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [Time remaining: {remaining}]', 
-                                                                       miniters=1, 
-                                                                       # This updates the progress bar in the GUI
-                                                                       set_postfix=None, 
-                                                                       postfix='', 
-                                                                       dynamic_ncols=True, 
-                                                                       update_interval=0.1)
-    )
+    # Define the function that runs in a separate thread
+    def run_parallel():
+        total_chunks = len(chunks)
+        
+        # Suppress terminal output by redirecting to os.devnull
+        with open(os.devnull, 'w') as fnull:
+            for i, _ in enumerate(
+                Parallel(n_jobs=n_jobs, verbose=0)(
+                    delayed(match_name_parallel)(chunk, matcher) for chunk in chunks
+                ), 1
+            ):
+                # Update progress in the GUI thread
+                update_progress(i / total_chunks * 100)  # Percentage progress
 
-    # Once the process is done, stop the progress bar
-    progress_bar.set(100)
-    root.update_idletasks()
+        # Once the process is done, set the progress bar to 100%
+        update_progress(100)
+    
+    # Run the parallel processing in a separate thread to keep the UI responsive
+    threading.Thread(target=run_parallel, daemon=True).start()
 
 # Create the customtkinter window
 root = ctk.CTk()

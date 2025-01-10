@@ -17,17 +17,24 @@ def process_chunks(chunks, matcher, n_jobs, progress_bar, root):
         root.update_idletasks()
 
     # Wrap the tqdm with the update_progress function
-    with open(os.devnull, 'w') as fnull:
-        results = Parallel(n_jobs=n_jobs, verbose=0)(
-            delayed(match_name_parallel)(chunk, matcher) for chunk in tqdm(chunks, 
-                                                                           desc="Processing", 
-                                                                           ncols=100, 
-                                                                           position=0, 
-                                                                           leave=True, 
-                                                                           file=fnull,  # Suppress output in terminal
-                                                                           dynamic_ncols=True, 
-                                                                           update_interval=0.1)
-        )
+    results = Parallel(n_jobs=n_jobs, verbose=0)(
+        delayed(match_name_parallel)(chunk, matcher) for chunk in tqdm(chunks, 
+                                                                       desc="Processing", 
+                                                                       ncols=100, 
+                                                                       position=0, 
+                                                                       leave=True, 
+                                                                       file=open(os.devnull, 'w'),  # Suppress output in terminal
+                                                                       dynamic_ncols=True, 
+                                                                       update_interval=0.1, 
+                                                                       # Use the custom update_progress function
+                                                                       bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [Time remaining: {remaining}]', 
+                                                                       miniters=1, 
+                                                                       # This updates the progress bar in the GUI
+                                                                       set_postfix=None, 
+                                                                       postfix='', 
+                                                                       dynamic_ncols=True, 
+                                                                       update_interval=0.1)
+    )
 
     # Once the process is done, stop the progress bar
     progress_bar.set(100)
